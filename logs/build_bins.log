@@ -1,0 +1,69 @@
+/opt/anaconda3/envs/pytorch_env/bin/python -m data_prep.build_bins --arm all
+tokenizer tokenizer/spm8192.model  vocab 8192
+
+val <- sample/10BT/014_00000.parquet
+    -> data/proc/val.bin  0.008B tok  8,882 docs  0.01 GiB  skipped 0
+trainA <- fineweb ['sample/10BT/000_00000.parquet', 'sample/10BT/001_00000.parquet', 'sample/10BT/002_00000.parquet']
+    12,231 docs  11.4M tok  762k tok/s  eta 24 min
+    29,987 docs  28.3M tok  724k tok/s  eta 25 min
+    48,783 docs  45.8M tok  846k tok/s  eta 21 min
+    70,374 docs  65.8M tok  951k tok/s  eta 18 min
+    101,344 docs  94.8M tok  1126k tok/s  eta 15 min
+    133,264 docs  124.6M tok  1257k tok/s  eta 13 min
+    170,276 docs  158.9M tok  1392k tok/s  eta 11 min
+    204,910 docs  191.4M tok  1481k tok/s  eta 10 min
+    238,110 docs  221.8M tok  1538k tok/s  eta 10 min
+    271,818 docs  253.0M tok  1589k tok/s  eta 9 min
+    306,574 docs  285.1M tok  1636k tok/s  eta 8 min
+Traceback (most recent call last):
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 403, in hf_raise_for_status
+    response.raise_for_status()
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/requests/models.py", line 1167, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://hf-mirror.com/datasets/HuggingFaceFW/fineweb/resolve/9bb295ddab0e05d785b879661af7260fed5140fc/sample/10BT/000_00000.parquet
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/Users/e/Documents/kimi/tasks/2026-11-02/15-30-06-481fed31/scaling-law-lab/data_prep/build_bins.py", line 218, in <module>
+    sys.exit(main())
+  File "/Users/e/Documents/kimi/tasks/2026-11-02/15-30-06-481fed31/scaling-law-lab/data_prep/build_bins.py", line 170, in main
+    manifest["trainA"] = build_arm("trainA", FINEWEB[0], TRAIN_A_SHARDS,
+  File "/Users/e/Documents/kimi/tasks/2026-11-02/15-30-06-481fed31/scaling-law-lab/data_prep/build_bins.py", line 82, in build_arm
+    for ex in ds:
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/datasets/iterable_dataset.py", line 2270, in __iter__
+    for key, example in ex_iterable:
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/datasets/iterable_dataset.py", line 1856, in __iter__
+    for key, pa_table in self._iter_arrow():
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/datasets/iterable_dataset.py", line 1879, in _iter_arrow
+    for key, pa_table in self.ex_iterable._iter_arrow():
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/datasets/iterable_dataset.py", line 476, in _iter_arrow
+    for key, pa_table in iterator:
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/datasets/iterable_dataset.py", line 323, in _iter_arrow
+    for key, pa_table in self.generate_tables_fn(**gen_kwags):
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/datasets/packaged_modules/parquet/parquet.py", line 93, in _generate_tables
+    for batch_idx, record_batch in enumerate(
+  File "pyarrow/_dataset.pyx", line 3936, in _iterator
+  File "pyarrow/_dataset.pyx", line 3526, in pyarrow._dataset.TaggedRecordBatchIterator.__next__
+  File "pyarrow/error.pxi", line 155, in pyarrow.lib.pyarrow_internal_check_status
+  File "pyarrow/error.pxi", line 89, in pyarrow.lib.check_status
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/datasets/utils/file_utils.py", line 827, in read_with_retries
+    out = read(*args, **kwargs)
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/huggingface_hub/hf_file_system.py", line 1016, in read
+    return super().read(length)
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/fsspec/spec.py", line 2083, in read
+    out = self.cache._fetch(self.loc, self.loc + length)
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/fsspec/caching.py", line 249, in _fetch
+    self.cache = self.fetcher(start, end)  # new block replaces old
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/huggingface_hub/hf_file_system.py", line 977, in _fetch_range
+    hf_raise_for_status(r)
+  File "/opt/anaconda3/envs/pytorch_env/lib/python3.10/site-packages/huggingface_hub/utils/_http.py", line 476, in hf_raise_for_status
+    raise _format(HfHubHTTPError, str(e), response) from e
+huggingface_hub.errors.HfHubHTTPError: 429 Client Error: Too Many Requests for url: https://hf-mirror.com/datasets/HuggingFaceFW/fineweb/resolve/9bb295ddab0e05d785b879661af7260fed5140fc/sample/10BT/000_00000.parquet (Request ID: Root=1-6af17a72-7a4d242c1b64fbe36f9bbd62;180efa0c-e78a-406c-a771-ab48791e65e3)
+
+We had to rate limit you, you hit the quota of 100000 resolvers requests per 5 minutes period. Enable "Higher Hub rate limits" in your organization's Network Security settings (https://huggingface.co/organizations/ci-org/settings/network-security) to get higher limits. See https://huggingface.co/docs/hub/rate-limits
+make: *** [bins] Error 1

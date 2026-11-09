@@ -1,0 +1,83 @@
+/opt/anaconda3/envs/pytorch_env/bin/python -m data_prep.build_bins --arm all
+tokenizer tokenizer/spm8192.model  vocab 8192
+
+    exists  val.bin  8,000,321 tok  (use --force to rebuild)
+  trainA <- HuggingFaceFW/fineweb
+    get     000_00000.parquet ...
+    get     001_00000.parquet ...
+    41,275 docs  38.8M tok  2585k tok/s  eta 7 min
+    83,946 docs  78.4M tok  2612k tok/s  eta 7 min
+    125,811 docs  117.6M tok  2613k tok/s  eta 6 min
+    167,660 docs  156.5M tok  2608k tok/s  eta 6 min
+    209,198 docs  195.3M tok  2604k tok/s  eta 6 min
+    251,366 docs  234.1M tok  2601k tok/s  eta 6 min
+    293,316 docs  272.9M tok  2599k tok/s  eta 5 min
+    335,496 docs  311.7M tok  2597k tok/s  eta 5 min
+    377,021 docs  350.3M tok  2595k tok/s  eta 5 min
+    417,883 docs  388.9M tok  2592k tok/s  eta 5 min
+    460,140 docs  427.5M tok  2591k tok/s  eta 4 min
+    502,556 docs  466.1M tok  2589k tok/s  eta 4 min
+    543,593 docs  504.1M tok  2585k tok/s  eta 4 min
+    585,527 docs  542.5M tok  2583k tok/s  eta 4 min
+    626,753 docs  580.9M tok  2582k tok/s  eta 3 min
+    667,997 docs  619.3M tok  2580k tok/s  eta 3 min
+    709,626 docs  657.6M tok  2579k tok/s  eta 3 min
+    750,675 docs  695.9M tok  2577k tok/s  eta 3 min
+    792,574 docs  734.4M tok  2577k tok/s  eta 2 min
+    834,095 docs  772.8M tok  2576k tok/s  eta 2 min
+    875,242 docs  811.4M tok  2576k tok/s  eta 2 min
+    917,454 docs  849.7M tok  2575k tok/s  eta 2 min
+    958,601 docs  887.7M tok  2573k tok/s  eta 1 min
+    1,000,037 docs  925.6M tok  2571k tok/s  eta 1 min
+    1,041,005 docs  963.7M tok  2570k tok/s  eta 1 min
+    1,080,271 docs  1000.2M tok  2565k tok/s  eta 1 min
+    1,121,889 docs  1038.5M tok  2564k tok/s  eta 0 min
+    1,163,477 docs  1076.9M tok  2564k tok/s  eta 0 min
+    -> trainA.bin  1.100B tok  1,188,582 docs  2.05 GiB  skipped 0
+trainB excludes 8,882 val ids
+  trainB <- HuggingFaceFW/fineweb-edu
+    get     000_00000.parquet ...
+    get     000_00001.parquet ...
+    24,945 docs  37.3M tok  2484k tok/s  eta 7 min
+    51,354 docs  75.6M tok  2519k tok/s  eta 7 min
+    77,567 docs  113.3M tok  2517k tok/s  eta 7 min
+    105,223 docs  150.7M tok  2511k tok/s  eta 6 min
+    132,051 docs  187.7M tok  2502k tok/s  eta 6 min
+    158,867 docs  224.7M tok  2496k tok/s  eta 6 min
+    185,317 docs  261.6M tok  2491k tok/s  eta 6 min
+    208,939 docs  298.2M tok  2485k tok/s  eta 5 min
+    232,815 docs  335.0M tok  2481k tok/s  eta 5 min
+    258,151 docs  372.2M tok  2481k tok/s  eta 5 min
+    284,865 docs  409.6M tok  2482k tok/s  eta 5 min
+    312,501 docs  446.8M tok  2482k tok/s  eta 4 min
+    340,675 docs  484.0M tok  2482k tok/s  eta 4 min
+    368,412 docs  521.1M tok  2481k tok/s  eta 4 min
+    395,173 docs  558.0M tok  2480k tok/s  eta 4 min
+    421,394 docs  594.5M tok  2477k tok/s  eta 3 min
+    445,341 docs  631.0M tok  2474k tok/s  eta 3 min
+    469,445 docs  667.4M tok  2472k tok/s  eta 3 min
+    495,132 docs  704.4M tok  2471k tok/s  eta 3 min
+    521,338 docs  741.7M tok  2472k tok/s  eta 2 min
+    547,811 docs  778.9M tok  2472k tok/s  eta 2 min
+    574,283 docs  815.9M tok  2472k tok/s  eta 2 min
+    601,110 docs  852.7M tok  2471k tok/s  eta 2 min
+    627,794 docs  889.4M tok  2470k tok/s  eta 1 min
+    653,741 docs  926.0M tok  2469k tok/s  eta 1 min
+    678,048 docs  962.3M tok  2467k tok/s  eta 1 min
+    702,277 docs  998.8M tok  2466k tok/s  eta 1 min
+    726,113 docs  1034.2M tok  2462k tok/s  eta 0 min
+    750,788 docs  1071.3M tok  2463k tok/s  eta 0 min
+    -> trainB.bin  1.100B tok  769,993 docs  2.05 GiB  skipped 0
+
+isolation checks:
+  file-level val disjointness : ok
+  edu arm filtered by val id  : 0 docs dropped
+
+verifying shards from disk:
+  val: 8,000,321 tok, 8,882 docs, first 40 tokens -> 'Are you Looking for Couples In Ohio? Search through the prof'
+  trainA: 1,100,001,023 tok, 1,188,582 docs, first 40 tokens -> '|Viewing Single Post From: Spoilers for the Week of February'
+  trainB: 1,100,000,988 tok, 769,993 docs, first 40 tokens -> 'The Independent Jane\nFor all the love, romance and scandal i'
+
+wrote data/proc/manifest.json
+
+BIN BUILD: PASS

@@ -1,0 +1,11 @@
+{
+  "tokenizer": "spm8192.model",
+  "corpus": "data/raw/tokenizer_corpus.txt",
+  "vocab_size": 8192,
+  "unk_count": 0,
+  "bytes_per_token": 3.253,
+  "roundtrip_exact": true,
+  "corpus_bytes": 314581471,
+  "corpus_sha256": "7dd2af38b3d31c23",
+  "model_sha256": "bb8d13cda6c5a32c"
+}

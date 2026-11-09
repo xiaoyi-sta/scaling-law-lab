@@ -1,0 +1,46 @@
+{
+  "val": {
+    "tokens": 8000321,
+    "docs": 8882,
+    "skipped_docs": 0,
+    "bytes_on_disk": 16000642,
+    "shards": [
+      "sample/10BT/014_00000.parquet"
+    ],
+    "repo": "HuggingFaceFW/fineweb",
+    "reused": true,
+    "first_tokens_decode": "Are you Looking for Couples In Ohio? Search through the prof"
+  },
+  "trainA": {
+    "tokens": 1100001023,
+    "docs": 1188582,
+    "skipped_docs": 0,
+    "bytes_on_disk": 2200002046,
+    "shards": [
+      "sample/10BT/000_00000.parquet",
+      "sample/10BT/001_00000.parquet"
+    ],
+    "repo": "HuggingFaceFW/fineweb",
+    "add_eos": true,
+    "dtype": "uint16",
+    "first_tokens_decode": "|Viewing Single Post From: Spoilers for the Week of February"
+  },
+  "trainB": {
+    "tokens": 1100000988,
+    "docs": 769993,
+    "skipped_docs": 0,
+    "bytes_on_disk": 2200001976,
+    "shards": [
+      "sample/100BT/000_00000.parquet",
+      "sample/100BT/000_00001.parquet"
+    ],
+    "repo": "HuggingFaceFW/fineweb-edu",
+    "add_eos": true,
+    "dtype": "uint16",
+    "first_tokens_decode": "The Independent Jane\nFor all the love, romance and scandal i"
+  },
+  "tokenizer": {
+    "path": "tokenizer/spm8192.model",
+    "vocab_size": 8192
+  }
+}
