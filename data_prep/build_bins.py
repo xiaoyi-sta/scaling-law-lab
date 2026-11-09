@@ -116,9 +116,23 @@ def iter_docs(paths: list[pathlib.Path]):
                     yield doc_id, text, dump
 
 
+def pool_tokens_by_dump(paths: list[pathlib.Path], dumps: set[str]) -> "collections.Counter":
+    """Token total per dump, for the documents a build is allowed to see."""
+    import collections
+    c = collections.Counter()
+    for p in paths:
+        for b in pq.ParquetFile(p).iter_batches(batch_size=65536, columns=["dump", "token_count"]):
+            d = b.to_pydict()
+            for dp, t in zip(d["dump"], d["token_count"]):
+                if dp in dumps:
+                    c[dp] += t
+    return c
+
+
 def build_arm(name: str, repo: str, files: list[str], target: int, sp,
               skip_ids: set[str] | None = None, keep_ids: bool = False,
-              force: bool = False, dumps: list[str] | None = None):
+              force: bool = False, dumps: list[str] | None = None,
+              dump_quota: dict[str, int] | None = None):
     """Stream documents -> flat uint16 shard + per-document lengths."""
     out = PROC / f"{name}.bin"
     lens_path = PROC / f"{name}_doc_lens.npy"
@@ -137,6 +151,7 @@ def build_arm(name: str, repo: str, files: list[str], target: int, sp,
     local = ensure_local(repo, files)
 
     written = docs = skipped = 0
+    used: dict[str, int] = {}
     buf: list[np.ndarray] = []
     buf_len = 0
     lens: list[int] = []
@@ -151,6 +166,13 @@ def build_arm(name: str, repo: str, files: list[str], target: int, sp,
             if dumps is not None and dump not in dumps:
                 skipped += 1
                 continue
+            # Documents are clustered by dump inside a parquet file, so a plain
+            # prefix of the stream would be ~100% one dump.  Quotas force both
+            # arms onto the same crawl mix; without them the "batch-controlled"
+            # comparison silently compares two batches again.
+            if dump_quota is not None and used.get(dump, 0) >= dump_quota.get(dump, 0):
+                skipped += 1
+                continue
             ids = np.asarray(sp.encode(text), dtype=np.uint16)
             if ids.size == 0:
                 continue
@@ -162,6 +184,7 @@ def build_arm(name: str, repo: str, files: list[str], target: int, sp,
                 ids_seen.append(doc_id)
             docs += 1
             written += ids.size
+            used[dump] = used.get(dump, 0) + ids.size
 
             if buf_len >= FLUSH_TOKENS:
                 f.write(np.concatenate(buf).tobytes())
@@ -256,12 +279,27 @@ def main() -> int:
 
     if args.arm in ("A2", "B2", "batchctl", "all"):
         # Same crawl dumps on both sides; only the quality filter differs.
+        shared = set(SHARED_DUMPS)
+        pool_a = pool_tokens_by_dump(ensure_local(FINEWEB, TRAIN_A_SHARDS), shared)
+        pool_b = pool_tokens_by_dump(ensure_local(FINEWEB_EDU, TRAIN_B_SHARDS), shared)
+        total_a = sum(pool_a.values())
+        shares = {d: pool_a[d] / total_a for d in SHARED_DUMPS}
+        quota = {d: int(args.batchctl_tokens * shares[d]) for d in SHARED_DUMPS}
+        print(f"\n  batch-controlled mix (from raw pool): "
+              + "  ".join(f"{d}={shares[d]*100:.0f}% -> {quota[d]/1e6:.1f}M tok"
+                          for d in SHARED_DUMPS))
+        for d in SHARED_DUMPS:
+            if pool_b.get(d, 0) < quota[d]:
+                raise SystemExit(f"edu pool has only {pool_b.get(d,0)/1e6:.1f}M tok for {d}, "
+                                 f"needs {quota[d]/1e6:.1f}M")
         manifest["trainA2"] = build_arm("trainA2", FINEWEB, TRAIN_A_SHARDS,
                                         args.batchctl_tokens, sp, dumps=SHARED_DUMPS,
-                                        force=args.force)
+                                        dump_quota=quota, force=args.force)
         manifest["trainB2"] = build_arm("trainB2", FINEWEB_EDU, TRAIN_B_SHARDS,
                                         args.batchctl_tokens, sp, dumps=SHARED_DUMPS,
-                                        force=args.force)
+                                        dump_quota=quota, force=args.force)
+        manifest["batchctl_quota"] = quota
+        manifest["batchctl_shares"] = shares
 
     print("\nisolation checks:")
     problems = []
