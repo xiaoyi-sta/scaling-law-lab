@@ -2,7 +2,7 @@
   "trainA2": {
     "tokens": 120000925,
     "docs": 131551,
-    "skipped_docs": 1549775,
+    "skipped_docs": 61838,
     "bytes_on_disk": 240001850,
     "shards": [
       "sample/10BT/000_00000.parquet",
@@ -16,7 +16,7 @@
   "trainB2": {
     "tokens": 120002171,
     "docs": 82533,
-    "skipped_docs": 430790,
+    "skipped_docs": 72218,
     "bytes_on_disk": 240004342,
     "shards": [
       "sample/100BT/000_00000.parquet",

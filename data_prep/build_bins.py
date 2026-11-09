@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import multiprocessing as mp
 import pathlib
 import sys
 import time
@@ -71,6 +72,34 @@ TRAIN_A_SHARDS = ["sample/10BT/000_00000.parquet", "sample/10BT/001_00000.parque
 TRAIN_B_SHARDS = ["sample/100BT/000_00000.parquet", "sample/100BT/000_00001.parquet"]
 
 FLUSH_TOKENS = 20_000_000
+
+# ---- parallel encoding ----------------------------------------------------
+# sentencepiece encodes one document at a time and is single-threaded, so a
+# 2.4e9-token build leaves 15 of 16 vCPUs idle.  Pool.imap preserves input
+# order, and encoding is a pure function of the text, so the shards come out
+# byte-identical to a sequential build -- `--workers 1` remains the reference.
+_WORKER_SP = None
+
+
+def _init_worker(model_path: str) -> None:
+    global _WORKER_SP
+    import sentencepiece as spm
+    _WORKER_SP = spm.SentencePieceProcessor(model_file=model_path)
+
+
+def _encode_one(item):
+    text, dump, doc_id = item
+    return _WORKER_SP.encode(text), dump, doc_id
+
+
+def encode_stream(items, workers: int, model_path: str, sp):
+    """Yield (ids, dump, doc_id) in input order, sequentially or in parallel."""
+    if workers <= 1:
+        for text, dump, doc_id in items:
+            yield sp.encode(text), dump, doc_id
+        return
+    with mp.Pool(workers, initializer=_init_worker, initargs=(model_path,)) as pool:
+        yield from pool.imap(_encode_one, items, chunksize=32)
 
 
 def ensure_local(repo: str, files: list[str]) -> list[pathlib.Path]:
@@ -132,7 +161,8 @@ def pool_tokens_by_dump(paths: list[pathlib.Path], dumps: set[str]) -> "collecti
 def build_arm(name: str, repo: str, files: list[str], target: int, sp,
               skip_ids: set[str] | None = None, keep_ids: bool = False,
               force: bool = False, dumps: list[str] | None = None,
-              dump_quota: dict[str, int] | None = None):
+              dump_quota: dict[str, int] | None = None,
+              workers: int = 1, model_path: str = ""):
     """Stream documents -> flat uint16 shard + per-document lengths."""
     out = PROC / f"{name}.bin"
     lens_path = PROC / f"{name}_doc_lens.npy"
@@ -158,22 +188,24 @@ def build_arm(name: str, repo: str, files: list[str], target: int, sp,
     ids_seen: list[str] = []
     t0 = last = time.time()
 
-    with open(tmp, "wb") as f:
-        for doc_id, text, dump in iter_docs(local):
+    def wanted(items):
+        """Cheap filters run before the expensive encode."""
+        for doc_id, text, dump in items:
             if skip_ids is not None and doc_id in skip_ids:
-                skipped += 1
                 continue
             if dumps is not None and dump not in dumps:
-                skipped += 1
                 continue
-            # Documents are clustered by dump inside a parquet file, so a plain
-            # prefix of the stream would be ~100% one dump.  Quotas force both
-            # arms onto the same crawl mix; without them the "batch-controlled"
-            # comparison silently compares two batches again.
+            yield text, dump, doc_id
+
+    with open(tmp, "wb") as f:
+        for ids, dump, doc_id in encode_stream(wanted(iter_docs(local)), workers,
+                                               model_path, sp):
+            # Quota is applied after encoding in the parallel path (the worker
+            # does not know the running totals); extra encodes are dropped here.
             if dump_quota is not None and used.get(dump, 0) >= dump_quota.get(dump, 0):
                 skipped += 1
                 continue
-            ids = np.asarray(sp.encode(text), dtype=np.uint16)
+            ids = np.asarray(ids, dtype=np.uint16)
             if ids.size == 0:
                 continue
             ids = np.append(ids, np.uint16(EOS))
@@ -245,27 +277,33 @@ def main() -> int:
     ap.add_argument("--val-tokens", type=int, default=VAL_TOKENS)
     ap.add_argument("--train-tokens", type=int, default=TRAIN_TOKENS)
     ap.add_argument("--batchctl-tokens", type=int, default=BATCHCTL_TOKENS)
+    ap.add_argument("--workers", type=int, default=1,
+                    help="parallel encoding processes; 1 = sequential reference build")
     ap.add_argument("--force", action="store_true", help="rebuild even if the .bin exists")
     args = ap.parse_args()
 
     PROC.mkdir(parents=True, exist_ok=True)
     sp = spm.SentencePieceProcessor(model_file=args.tokenizer)
-    print(f"tokenizer {args.tokenizer}  vocab {sp.vocab_size()}\n")
+    print(f"tokenizer {args.tokenizer}  vocab {sp.vocab_size()}  "
+          f"workers={args.workers} (1 = sequential reference)\n")
     manifest = {}
 
     if args.arm in ("val", "all"):
         assert VAL_SHARD not in TRAIN_A_SHARDS, "val shard must not be a training shard"
         manifest["val"] = build_arm("val", FINEWEB, [VAL_SHARD], args.val_tokens,
-                                    sp, keep_ids=True, force=args.force)
+                                    sp, keep_ids=True, force=args.force,
+                                    workers=args.workers, model_path=args.tokenizer)
 
     if args.arm in ("valB", "all"):
         assert VAL_B_SHARD not in TRAIN_B_SHARDS, "valB shard must not be a trainB shard"
         manifest["valB"] = build_arm("valB", FINEWEB_EDU, [VAL_B_SHARD], args.val_tokens,
-                                     sp, keep_ids=True, force=args.force)
+                                     sp, keep_ids=True, force=args.force,
+                                     workers=args.workers, model_path=args.tokenizer)
 
     if args.arm in ("A", "all"):
         manifest["trainA"] = build_arm("trainA", FINEWEB, TRAIN_A_SHARDS,
-                                       args.train_tokens, sp, force=args.force)
+                                       args.train_tokens, sp, force=args.force,
+                                       workers=args.workers, model_path=args.tokenizer)
 
     if args.arm in ("B", "all"):
         val_ids_path = PROC / "val_ids.json"
@@ -275,7 +313,8 @@ def main() -> int:
         print(f"trainB excludes {len(val_ids):,} val ids")
         manifest["trainB"] = build_arm("trainB", FINEWEB_EDU, TRAIN_B_SHARDS,
                                        args.train_tokens, sp, skip_ids=val_ids,
-                                       force=args.force)
+                                       force=args.force,
+                                       workers=args.workers, model_path=args.tokenizer)
 
     if args.arm in ("A2", "B2", "batchctl", "all"):
         # Same crawl dumps on both sides; only the quality filter differs.
@@ -294,10 +333,12 @@ def main() -> int:
                                  f"needs {quota[d]/1e6:.1f}M")
         manifest["trainA2"] = build_arm("trainA2", FINEWEB, TRAIN_A_SHARDS,
                                         args.batchctl_tokens, sp, dumps=SHARED_DUMPS,
-                                        dump_quota=quota, force=args.force)
+                                        dump_quota=quota, force=args.force,
+                                        workers=args.workers, model_path=args.tokenizer)
         manifest["trainB2"] = build_arm("trainB2", FINEWEB_EDU, TRAIN_B_SHARDS,
                                         args.batchctl_tokens, sp, dumps=SHARED_DUMPS,
-                                        dump_quota=quota, force=args.force)
+                                        dump_quota=quota, force=args.force,
+                                        workers=args.workers, model_path=args.tokenizer)
         manifest["batchctl_quota"] = quota
         manifest["batchctl_shares"] = shares
 
