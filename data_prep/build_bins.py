@@ -89,17 +89,22 @@ def _init_worker(model_path: str) -> None:
 
 def _encode_one(item):
     text, dump, doc_id = item
-    return _WORKER_SP.encode(text), dump, doc_id
+    # Return a uint16 buffer, not a list[int].  Pickling a list of ~1000 Python
+    # ints per document is 10x the payload and saturates the pipe when 12 workers
+    # push results at once; an ndarray pickles as one contiguous buffer.
+    return np.asarray(_WORKER_SP.encode(text), dtype=np.uint16), dump, doc_id
 
 
 def encode_stream(items, workers: int, model_path: str, sp):
     """Yield (ids, dump, doc_id) in input order, sequentially or in parallel."""
     if workers <= 1:
         for text, dump, doc_id in items:
-            yield sp.encode(text), dump, doc_id
+            yield np.asarray(sp.encode(text), dtype=np.uint16), dump, doc_id
         return
+    # chunksize 256: ~256 docs (~25k tokens) per task, so dispatch overhead is
+    # negligible next to the encode itself.
     with mp.Pool(workers, initializer=_init_worker, initargs=(model_path,)) as pool:
-        yield from pool.imap(_encode_one, items, chunksize=32)
+        yield from pool.imap(_encode_one, items, chunksize=256)
 
 
 def ensure_local(repo: str, files: list[str]) -> list[pathlib.Path]:
