@@ -44,12 +44,20 @@ def evaluate(model, val_bin: str, doc_lens: np.ndarray, seq_len: int,
         if max_tokens is not None and pos >= max_tokens:
             break
         x = torch.as_tensor(batch, dtype=torch.long, device=device)
+        B, T = x.shape
         with autocast_ctx(device, dtype):
             per_tok = model.per_token_loss(x[:, :-1], x[:, 1:])   # (B, T-1)
-        vals = per_tok.float().cpu().numpy().reshape(-1)
-        # window starting at global `pos` predicts tokens pos+1 .. pos+T-1
-        tok_loss[pos + 1: pos + 1 + vals.size] = vals
-        pos += x.shape[1]
+        pt = per_tok.float().cpu().numpy()                        # (B, T-1)
+        # Window i covers global positions [pos + i*T, pos + i*T + T) and predicts
+        # the last T-1 of them.  Flattening the (B, T-1) block and writing it
+        # contiguously is WRONG: every window's first token has no prediction, so
+        # the rows must be placed with a T-stride gap, not packed.  Getting this
+        # wrong silently scrambles token -> document assignment and makes n_doc
+        # drift between evaluations.
+        for i in range(B):
+            start = pos + i * T + 1
+            tok_loss[start: start + T - 1] = pt[i]
+        pos += B * T
 
     valid = ~np.isnan(tok_loss)
     lens = np.asarray(doc_lens, dtype=np.int64)
