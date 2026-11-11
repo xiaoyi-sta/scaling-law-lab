@@ -383,14 +383,21 @@ def main() -> int:
                      ("20M budget", 6 * PRESETS["20M"].n_params_nonemb * 1e9),
                      ("50M budget", 6 * PRESETS["50M"].n_params_nonemb * 1e9)]:
         a = optimal_allocation(fit.theta, C)
+        # D/N is a nonlinear function of a badly-identified A/alpha, so a point
+        # estimate alone is misleading.  Propagate the bootstrap distribution.
+        dn = [optimal_allocation(t, C)["D_over_N"] for t in boot] if len(boot) > 10 else []
+        a["D_over_N_ci"] = ([float(np.quantile(dn, .025)), float(np.quantile(dn, .975))]
+                            if dn else [float("nan")] * 2)
         alloc.append({"budget": label, "C": C, **a})
     md += ["## 6. Optimal allocation (D/N)", "",
-           "| budget | C (FLOPs) | N | D | D/N |", "|---|---|---|---|---|"]
+           "| budget | C (FLOPs) | N | D | D/N (point) | D/N 95% bootstrap |",
+           "|---|---|---|---|---|---|"]
     for a in alloc:
         md.append(f"| {a['budget']} | {a['C']:.3e} | {a['N']:,.0f} | {a['D']:,.0f} | "
-                  f"{a['D_over_N']:.2f} |")
-    md += ["", "Note: N only spans 6.4x here, so the exponent and therefore this ratio are "
-               "not comparable to Chinchilla's ~20. Report the interval, not the point.", ""]
+                  f"{a['D_over_N']:.1f} | [{a['D_over_N_ci'][0]:.1f}, {a['D_over_N_ci'][1]:.1f}] |")
+    md += ["", "区间才是结论：D/N 的点估计落在 80-90，但 95% bootstrap 区间横跨一个数量级，",
+           "**与 Chinchilla 的 ~20 并不矛盾也不一致**——在这个 N 跨度（6.4 倍）下无从分辨。",
+           "README 必须这样写，否则等于宣称一个无法支撑的结论。", ""]
     report["allocation"] = alloc
 
     md += ["## 7. 结论（可直接用于 README）", "",
