@@ -1,0 +1,6 @@
+run bench50M  device=cuda dtype=bf16  params_nonemb=50,348,544
+steps=20  tokens/step=131,072  accum=8  warmup=1  eval@[10, 20]
+data: data/proc/trainA.bin (1,100,001,023 tok)  ~0.00 epochs
+  step 1/20  loss=9.1123  lr=2.00e-03  |g|=10.06  95.0k tok/s  eta 0.4 min
+  step 20/20  loss=7.0090  lr=6.33e-05  |g|=0.21  161.9k tok/s  eta 0.0 min
+done bench50M in 0.3 min

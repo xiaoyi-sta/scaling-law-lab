@@ -1,0 +1,59 @@
+nohup: ignoring input
+tokenizer tokenizer/spm8192.model  vocab 8192  workers=14 (1 = sequential reference)
+
+  val <- HuggingFaceFW/fineweb
+    get     014_00000.parquet ...
+    -> val.bin  0.008B tok  8,882 docs  0.01 GiB  skipped 0
+  valB <- HuggingFaceFW/fineweb-edu
+    get     005_00000.parquet ...
+    -> valB.bin  0.008B tok  5,443 docs  0.01 GiB  skipped 0
+  trainA <- HuggingFaceFW/fineweb
+    get     000_00000.parquet ...
+    get     001_00000.parquet ...
+    230,145 docs  214.7M tok  14286k tok/s  eta 1 min
+    473,345 docs  439.3M tok  14615k tok/s  eta 1 min
+    718,081 docs  665.4M tok  14761k tok/s  eta 0 min
+    961,375 docs  890.3M tok  14818k tok/s  eta 0 min
+    -> trainA.bin  1.100B tok  1,188,582 docs  2.05 GiB  skipped 0
+trainB excludes 8,882 val ids
+  trainB <- HuggingFaceFW/fineweb-edu
+    get     000_00000.parquet ...
+    get     000_00001.parquet ...
+    153,089 docs  216.7M tok  14375k tok/s  eta 1 min
+    314,625 docs  449.5M tok  14944k tok/s  eta 1 min
+    481,281 docs  684.7M tok  15188k tok/s  eta 0 min
+    655,369 docs  928.4M tok  15452k tok/s  eta 0 min
+    -> trainB.bin  1.100B tok  769,993 docs  2.05 GiB  skipped 0
+    cached  000_00000.parquet  2.00 GiB
+    cached  001_00000.parquet  2.00 GiB
+    cached  000_00000.parquet  2.01 GiB
+    cached  000_00001.parquet  2.00 GiB
+
+  batch-controlled mix (from raw pool): CC-MAIN-2013-20=58% -> 69.6M tok  CC-MAIN-2013-48=42% -> 50.4M tok
+  trainA2 <- HuggingFaceFW/fineweb
+    cached  000_00000.parquet  2.00 GiB
+    cached  001_00000.parquet  2.00 GiB
+    63,489 docs  58.7M tok  3911k tok/s  eta 0 min
+    75,050 docs  69.6M tok  2128k tok/s  eta 0 min
+    -> trainA2.bin  0.120B tok  131,551 docs  0.22 GiB  skipped 61,838
+  trainB2 <- HuggingFaceFW/fineweb-edu
+    cached  000_00000.parquet  2.01 GiB
+    cached  000_00001.parquet  2.00 GiB
+    47,207 docs  69.6M tok  2949k tok/s  eta 0 min
+    -> trainB2.bin  0.120B tok  82,533 docs  0.22 GiB  skipped 72,218
+
+isolation checks:
+  file-level val disjointness : ok
+  edu arm filtered by val id  : 0 docs dropped
+
+verifying shards from disk:
+  val: 8,000,321 tok, 8,882 docs, first 40 tokens -> 'Are you Looking for Couples In Ohio? Search through the prof'
+  valB: 8,000,851 tok, 5,443 docs, first 40 tokens -> 'The film team dragged the camera and hundreds of pounds of e'
+  trainA: 1,100,001,023 tok, 1,188,582 docs, first 40 tokens -> '|Viewing Single Post From: Spoilers for the Week of February'
+  trainB: 1,100,000,988 tok, 769,993 docs, first 40 tokens -> 'The Independent Jane\nFor all the love, romance and scandal i'
+  trainA2: 120,000,925 tok, 131,551 docs, first 40 tokens -> '|Viewing Single Post From: Spoilers for the Week of February'
+  trainB2: 120,002,171 tok, 82,533 docs, first 40 tokens -> 'The Independent Jane\nFor all the love, romance and scandal i'
+
+wrote data/proc/manifest.json
+
+BIN BUILD: PASS
