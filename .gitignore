@@ -30,3 +30,5 @@ results/overlap.json
 # OS / editor
 .DS_Store
 .ipynb_checkpoints/
+results/report.md
+results/report.json
