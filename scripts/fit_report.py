@@ -172,11 +172,8 @@ def main() -> int:
     # sigma_run must come from replicate SEEDS of one corpus arm, never across arms
     seed_rows = [r for r in logs.get("A", []) if arm_of(r["run_id"]) == "A"]
     N, D, L, se, g = arrays(seed_rows)
-    Nc = N; Dc = D
-    cells = {}
-    for i in range(len(L)):
-        cells.setdefault((Nc[i], Dc[i]), []).append(i)
-    sr = sigma_run_from_replicates(N, D, L, g) if len(seed_rows) else {"sigma_run": None, "df": 0, "n_cells": 0}
+    sr = (sigma_run_from_replicates(N, D, L, g) if seed_rows
+          else {"sigma_run": None, "df": 0, "n_cells": 0})
     report["sigma_run"] = sr
     if sr["sigma_run"] is None:
         print("WARNING: no replicate seeds -> sigma_run not identifiable; "
@@ -336,7 +333,8 @@ def main() -> int:
                 continue
         gains = np.asarray(gains)
         ci = (np.quantile(gains, [.025, .975]).tolist() if gains.size > 10 else [float("nan")] * 2)
-        return {"val_set": val_set, "arm_hi": arm_hi, "points": pts, "gain": gain,
+        return {"val_set": val_set, "arm_hi": arm_hi, "arm_lo": arm_lo,
+                "points": pts, "gain": gain,
                 "gain_ci": ci, "B_A": jf["B_A"], "B_B": jf["B_B"], "beta": jf["beta"],
                 "n_boot": int(gains.size)}
 
@@ -349,9 +347,9 @@ def main() -> int:
                "the training distribution of arm A and 4x further (unigram JSD 0.133 vs 0.033)",
                "from arm B, so it structurally favours A; the pair brackets the true effect.", ""]
         for b in blocks:
-            tag = f"{b['arm_hi']} minus A" if b["arm_hi"] in ("B",) else f"{b['arm_hi']} minus {b['arm_hi'][0]}"
-            md += [f"### {b['arm_hi']} vs arm A, graded on val {b['val_set']}", "",
-                   "| D | arm A | arm " + b["arm_hi"] + " | DeltaL |", "|---|---|---|---|"]
+            md += [f"### arm {b['arm_hi']} vs arm {b['arm_lo']}, graded on val {b['val_set']}", "",
+                   f"| D | arm {b['arm_lo']} | arm {b['arm_hi']} | DeltaL |",
+                   "|---|---|---|---|"]
             for d, la, lh in b["points"]:
                 md.append(f"| {d:,.0f} | {la:.4f} | {lh:.4f} | {lh - la:+.4f} |")
             md += ["", f"- joint model: B_A = {b['B_A']:.1f}, B_B = {b['B_B']:.1f}, "
