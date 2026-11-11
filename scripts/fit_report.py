@@ -181,10 +181,27 @@ def main() -> int:
         sigma_run = 0.0
     else:
         sigma_run = sr["sigma_run"]
+        # Homoscedasticity across model sizes is an ASSUMPTION, not a given; check it.
+        per_size = {}
+        for mname in PRESETS:
+            mask = N == PRESETS[mname].n_params_nonemb
+            if mask.sum() >= 2:
+                r = sigma_run_from_replicates(N[mask], D[mask], L[mask], g[mask])
+                if r["sigma_run"]:
+                    per_size[mname] = r["sigma_run"]
         md += [f"## 1. sigma_run",
-               f"- sigma_run = **{sr['sigma_run']:.4f}** nats "
-               f"(95% chi2 CI [{sr['ci_lo']:.4f}, {sr['ci_hi']:.4f}], df={sr['df']})",
-               f"- replicate cells = {sr['n_cells']}", ""]
+               f"- pooled sigma_run = **{sr['sigma_run']:.4f}** nats "
+               f"(95% chi2 CI [{sr['ci_lo']:.4f}, {sr['ci_hi']:.4f}], df={sr['df']}, "
+               f"{sr['n_cells']} replicate cells)"]
+        if per_size:
+            md.append("- per size: " + ", ".join(f"{k}={v:.4f}" for k, v in per_size.items()))
+            if len(per_size) > 1:
+                lo_, hi_ = min(per_size.values()), max(per_size.values())
+                md.append(f"- **同方差假设不成立**：最大/最小 = {hi_/lo_:.1f}x。"
+                          f"权重与预测区间用的是 pooled 值，对最精确的那一档偏保守；"
+                          f"若 sigma_run 随尺寸下降，50M 的预测区间是**过宽**而非过窄。")
+                report["sigma_run_per_size"] = per_size
+        md.append("")
 
     w = 1.0 / (sigma_run ** 2 + np.maximum(se, 1e-6) ** 2)
 
