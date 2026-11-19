@@ -21,7 +21,7 @@ smoke:            ## Step 4 gate: 4 optimizer steps + 2 evals on this machine
 	$(PY) train.py --model 8M --arm A --smoke --steps 4 --eval-tokens 131072 --run-id smoke8M
 
 report:           ## 从 logs/*.csv 生成拟合报告（本地，零成本）
-	$(PY) -m scripts.fit_report
+	$(PY) -m scripts.fit_report --bootstrap 2000
 
 report-synthetic: ## 用合成数据自检整条拟合流水线
 	$(PY) -m scripts.fit_report --synthetic --bootstrap 300

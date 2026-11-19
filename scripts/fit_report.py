@@ -164,8 +164,12 @@ def main() -> int:
 
     RESULTS.mkdir(exist_ok=True)
     report: dict = {}
-    md: list[str] = ["# Scaling-law report", ""]
-    md.append(f"observations: " + ", ".join(f"val{vs}={len(v)}" for vs, v in sorted(logs.items())))
+    md: list[str] = ["# 缩放律拟合报告", ""]
+    md.append("观测数：" + "，".join(f"验证集{vs} {len(v)} 条" for vs, v in sorted(logs.items())))
+    # bootstrap 区间随重采样次数变化，必须写进报告头，否则数字无法追溯
+    md.append("")
+    md.append(f"> bootstrap 重采样次数 B = {args.bootstrap}，随机种子 = {args.seed}；"
+              f"改变 B 会让区间在小数点后第三位上移动。")
     md.append("")
 
     # ---- 1. sigma_run ---------------------------------------------------
@@ -189,12 +193,12 @@ def main() -> int:
                 r = sigma_run_from_replicates(N[mask], D[mask], L[mask], g[mask])
                 if r["sigma_run"]:
                     per_size[mname] = r["sigma_run"]
-        md += [f"## 1. sigma_run",
-               f"- pooled sigma_run = **{sr['sigma_run']:.4f}** nats "
-               f"(95% chi2 CI [{sr['ci_lo']:.4f}, {sr['ci_hi']:.4f}], df={sr['df']}, "
-               f"{sr['n_cells']} replicate cells)"]
+        md += ["## 1. σ_run（run 级可复现性）",
+               f"- 合并估计 σ_run = **{sr['sigma_run']:.4f}** nats"
+               f"（95% χ² 区间 [{sr['ci_lo']:.4f}, {sr['ci_hi']:.4f}]，df={sr['df']}，"
+               f"{sr['n_cells']} 个重复格子）"]
         if per_size:
-            md.append("- per size: " + ", ".join(f"{k}={v:.4f}" for k, v in per_size.items()))
+            md.append("- 分尺寸：" + "，".join(f"{k} = {v:.4f}" for k, v in per_size.items()))
             if len(per_size) > 1:
                 lo_, hi_ = min(per_size.values()), max(per_size.values())
                 md.append(f"- **同方差假设不成立**：最大/最小 = {hi_/lo_:.1f}x。"
@@ -216,8 +220,8 @@ def main() -> int:
     boot = cluster_bootstrap(Na, Da, La, ga, wa, B=args.bootstrap, seed=args.seed)
     jk = jackknife_runs(Na, Da, La, ga, wa)
 
-    md += ["## 2. M1 fit (val set A)", "",
-           "| param | estimate | asymptotic 95% | two-level bootstrap 95% | LOO-run range |",
+    md += ["## 2. M1 拟合（验证集 A）", "",
+           "| 参数 | 点估计 | 渐近 95% | 两级 bootstrap 95% | LOO-run 范围 |",
            "|---|---|---|---|---|"]
     report["fit"] = fit.as_dict()
     report["bootstrap"] = {
@@ -234,12 +238,12 @@ def main() -> int:
             bcell = "n/a"
         md.append(f"| {nm} | {est:.4f} | [{a_lo:.4f}, {a_hi:.4f}] | {bcell} | "
                   f"[{jk['min'][i]:.4f}, {jk['max'][i]:.4f}] |")
-    md += ["", f"n = {fit.n}, runs = {jk['n_runs']}, weighted RSS = {fit.rss:.4e}", ""]
+    md += ["", f"观测数 n = {fit.n}，独立 run = {jk['n_runs']}，加权 RSS = {fit.rss:.4e}", ""]
 
     # cross-check: unweighted vs weighted (the spec promises both)
     fit_u = wnls(Na, Da, La, None, seed=args.seed)
-    md.append(f"unweighted fit, alpha = {fit_u.theta[2]:.4f} vs weighted {fit.theta[2]:.4f} "
-              f"(difference {abs(fit_u.theta[2]-fit.theta[2]):.2e})")
+    md.append(f"稳健性对照：不加权拟合 α = {fit_u.theta[2]:.4f}，加权拟合 α = {fit.theta[2]:.4f}"
+              f"（相差 {abs(fit_u.theta[2]-fit.theta[2]):.2e}，说明权重接近等权）")
     md.append("")
 
     # ---- 3. model comparison -------------------------------------------
@@ -250,11 +254,11 @@ def main() -> int:
     for nm, m in (("M1 A/N^a+B/D^b+E", fit), ("M2 A/N^a+B/D^b", m2), ("M3 a lnN+b lnD+c", m3)):
         aic, bic = aic_bic(m)
         rows.append((nm, m.k, m.rss, aic, bic))
-    md += ["## 3. Function form", "", "| model | k | weighted RSS | AIC | BIC |", "|---|---|---|---|---|"]
+    md += ["## 3. 函数形式比较", "", "| 模型 | 参数个数 k | 加权 RSS | AIC | BIC |", "|---|---|---|---|---|"]
     for nm, k, rss, aic, bic in rows:
         md.append(f"| {nm} | {k} | {rss:.4e} | {aic:.2f} | {bic:.2f} |")
-    md += ["", f"- nested F test M1 vs M2: F({fit.k-m2.k}, {fit.dof}) = {F:.3f}, p = {p:.4g}",
-           f"- M3 coefficients: {', '.join(f'{k}={v:.4f}' for k, v in m3.params.items())}", ""]
+    md += ["", f"- 嵌套 F 检验（M1 vs M2）：F({fit.k-m2.k}, {fit.dof}) = {F:.3f}，p = {p:.4g}",
+           f"- M3 系数：{'，'.join(f'{k} = {v:.4f}' for k, v in m3.params.items())}", ""]
     report["model_comparison"] = {
         "F": F, "p": p,
         "models": [{"name": nm, "k": k, "rss": rss, "aic": aic, "bic": bic}
@@ -281,19 +285,19 @@ def main() -> int:
             covered = (pi["lo"] <= y) & (y <= pi["hi"])
             ws = winkler_score(pi["lo"], pi["hi"], y)
             mape = float(np.mean(np.abs(pi["pred"] - y) / y) * 100)
-            md += ["## 4. Extrapolation", "",
-                   f"fit on {int(mask_fit.sum())} points, predict {int(mask_tst.sum())}", "",
-                   "| N | D | actual | predicted | 95% PI | covered |", "|---|---|---|---|---|---|"]
+            md += ["## 4. 外推验证", "",
+                   f"用 {int(mask_fit.sum())} 个观测拟合，外推 {int(mask_tst.sum())} 个点", "",
+                   "| N | D | 实测 | 预测 | 95% 预测区间 | 是否覆盖 |", "|---|---|---|---|---|---|"]
             # pi is indexed by position within the test subset, not by the global row
             test_idx = np.where(mask_tst)[0]
             for k, j in enumerate(test_idx):
                 md.append(f"| {Na[j]:,.0f} | {Da[j]:,.0f} | {La[j]:.4f} | {pi['pred'][k]:.4f} | "
-                          f"[{pi['lo'][k]:.4f}, {pi['hi'][k]:.4f}] | {'yes' if covered[k] else 'NO'} |")
-            md += ["", f"- coverage: {int(covered.sum())}/{int(covered.size)}",
-                   f"- mean Winkler score: {float(ws.mean()):.4f} (lower is better; "
-                   f"rewards sharpness, not just coverage)",
-                   f"- MAPE: {mape:.2f}%"
-                   + ("" if mape < 5 else "  <-- above the 5% target, see spec 10.3"), ""]
+                          f"[{pi['lo'][k]:.4f}, {pi['hi'][k]:.4f}] | {'是' if covered[k] else '否'} |")
+            md += ["", f"- 覆盖率：{int(covered.sum())}/{int(covered.size)}",
+                   f"- 平均 Winkler 分数：{float(ws.mean()):.4f}"
+                   f"（越低越好，它同时惩罚区间过宽与未覆盖，而不只是数覆盖个数）",
+                   f"- MAPE：{mape:.2f}%"
+                   + ("" if mape < 5 else "  <-- 高于 5% 目标，需在结论中说明"), ""]
             report["extrapolation"] = {
                 "n_fit": int(mask_fit.sum()), "n_test": int(mask_tst.sum()),
                 "coverage": [int(covered.sum()), int(covered.size)],
@@ -359,21 +363,21 @@ def main() -> int:
                           ablation_block("A", "B2", "A2"), ablation_block("B", "B2", "A2"))
               if b]
     if blocks:
-        md += ["## 5. Ablation", "",
-               "Delta_L is graded on BOTH validation sets. A single raw-web val set sits in",
-               "the training distribution of arm A and 4x further (unigram JSD 0.133 vs 0.033)",
-               "from arm B, so it structurally favours A; the pair brackets the true effect.", ""]
+        md += ["## 5. 数据消融", "",
+               "ΔL 在两套验证集上分别评估。单用原始网页验证集会系统性偏向 A 组：",
+               "该验证集与 A 组同分布，与 B 组的 unigram JSD 是 A 组的 4 倍（0.133 vs 0.033）。",
+               "两套并用才能夹逼出真实效应。", ""]
         for b in blocks:
-            md += [f"### arm {b['arm_hi']} vs arm {b['arm_lo']}, graded on val {b['val_set']}", "",
-                   f"| D | arm {b['arm_lo']} | arm {b['arm_hi']} | DeltaL |",
+            md += [f"### {b['arm_hi']} 组 vs {b['arm_lo']} 组（评估于验证集 {b['val_set']}）", "",
+                   f"| D | {b['arm_lo']} 组 | {b['arm_hi']} 组 | ΔL |",
                    "|---|---|---|---|"]
             for d, la, lh in b["points"]:
                 md.append(f"| {d:,.0f} | {la:.4f} | {lh:.4f} | {lh - la:+.4f} |")
-            md += ["", f"- joint model: B_A = {b['B_A']:.1f}, B_B = {b['B_B']:.1f}, "
-                       f"beta = {b['beta']:.4f}",
-                   f"- token-equivalent gain of arm {b['arm_hi']} = **{b['gain']:.3f}x** "
-                   f"(95% CI [{b['gain_ci'][0]:.3f}, {b['gain_ci'][1]:.3f}], "
-                   f"{b['n_boot']} bootstrap replicates)", ""]
+            md += ["", f"- 联合模型：B_A = {b['B_A']:.1f}，B_B = {b['B_B']:.1f}，"
+                       f"β = {b['beta']:.4f}",
+                   f"- {b['arm_hi']} 组的 token 等效增益 = **{b['gain']:.3f}x** "
+                   f"（95% 区间 [{b['gain_ci'][0]:.3f}, {b['gain_ci'][1]:.3f}]，"
+                   f"{b['n_boot']} 次 bootstrap 重采样）", ""]
         report["ablation"] = blocks
 
         gains_a = next((b for b in blocks if b["val_set"] == "A" and b["arm_hi"] == "B"), None)
@@ -396,9 +400,9 @@ def main() -> int:
 
     # ---- 6. optimal allocation -----------------------------------------
     alloc = []
-    for label, C in [("8M budget", 6 * PRESETS["8M"].n_params_nonemb * 5e8),
-                     ("20M budget", 6 * PRESETS["20M"].n_params_nonemb * 1e9),
-                     ("50M budget", 6 * PRESETS["50M"].n_params_nonemb * 1e9)]:
+    for label, C in [("8M 预算", 6 * PRESETS["8M"].n_params_nonemb * 5e8),
+                     ("20M 预算", 6 * PRESETS["20M"].n_params_nonemb * 1e9),
+                     ("50M 预算", 6 * PRESETS["50M"].n_params_nonemb * 1e9)]:
         a = optimal_allocation(fit.theta, C)
         # D/N is a nonlinear function of a badly-identified A/alpha, so a point
         # estimate alone is misleading.  Propagate the bootstrap distribution.
@@ -406,8 +410,8 @@ def main() -> int:
         a["D_over_N_ci"] = ([float(np.quantile(dn, .025)), float(np.quantile(dn, .975))]
                             if dn else [float("nan")] * 2)
         alloc.append({"budget": label, "C": C, **a})
-    md += ["## 6. Optimal allocation (D/N)", "",
-           "| budget | C (FLOPs) | N | D | D/N (point) | D/N 95% bootstrap |",
+    md += ["## 6. 最优配比（D/N）", "",
+           "| 预算 | C（FLOPs） | N | D | D/N 点估计 | D/N 95% bootstrap 区间 |",
            "|---|---|---|---|---|---|"]
     for a in alloc:
         md.append(f"| {a['budget']} | {a['C']:.3e} | {a['N']:,.0f} | {a['D']:,.0f} | "
@@ -419,8 +423,8 @@ def main() -> int:
 
     md += ["## 7. 结论（可直接用于 README）", "",
            f"1. **缩放律拟合**：L(N,D) = A/N^α + B/D^β + E，α = {fit.theta[2]:.3f}、"
-           f"β = {fit.theta[3]:.3f}、E = {fit.theta[4]:.2f}（24 观测 / 6 run；"
-           f"α 的两级 bootstrap CI 见 §2）。",
+           f"β = {fit.theta[3]:.3f}、E = {fit.theta[4]:.2f}"
+           f"（{fit.n} 观测 / {jk['n_runs']} run；α 的两级 bootstrap 区间见 §2）。",
            f"2. **模型选择**：M1 的 AIC 与 BIC 均优于 M2（E=0）与 M3（对数线性），"
            f"嵌套 F 检验 p = {p:.4g}。",
            f"3. **外推**：仅用 8M + 20M 前三个断点拟合，预测 20M@1B 与 50M 全部，"
