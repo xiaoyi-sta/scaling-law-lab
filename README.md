@@ -129,11 +129,8 @@ python -m scripts.selfcheck   # 21 项数值自检
 
 | 文件 | 内容 |
 |---|---|
-| **[FLOW.md](FLOW.md)** | **完整流程**：做了什么、为什么、踩了什么坑、最终结果 |
-| [00-学习顺序.md](00-学习顺序.md) | 按依赖顺序读代码的索引（哪一层看哪几行） |
-| [SPEC-v3.md](SPEC-v3.md) | 计划文档，含设计阶段对照 v2 的十一项修正 |
-| [RESUME.md](RESUME.md) | 停机与恢复清单（如何接着跑） |
-| [results/report.md](results/report.md) | 自动生成的统计报告（七节） |
+| **[研究记录.md](研究记录.md)** | **完整记录**：从预算怎么定到每一次走错的路，含全部数字 |
+| [results/report.md](results/report.md) | 自动生成的统计报告（七节），`make report` 可重算 |
 
 ---
 
