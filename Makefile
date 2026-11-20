@@ -1,7 +1,7 @@
 # Uses whatever python is active (conda env or venv).
 # Override with:  make check PY=/path/to/python
 PY ?= python
-.PHONY: check test tokenizer bins smoke report report-synthetic clean
+.PHONY: check test tokenizer bins smoke report report-synthetic plots clean
 
 check:            ## Phase-1 gate: params, shapes, forward/backward
 	$(PY) -m scripts.check_model
@@ -25,3 +25,6 @@ report:           ## 从 logs/*.csv 生成拟合报告（本地，零成本）
 
 report-synthetic: ## 用合成数据自检整条拟合流水线
 	$(PY) -m scripts.fit_report --synthetic --bootstrap 300
+
+plots:            ## 重画六张诊断与结果图
+	$(PY) -m scripts.plots
