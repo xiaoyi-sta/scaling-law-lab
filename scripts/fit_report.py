@@ -152,6 +152,9 @@ def main() -> int:
     ap.add_argument("--synthetic", action="store_true")
     ap.add_argument("--bootstrap", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--out", default=None,
+                    help="output basename under results/ (default: report, "
+                         "or report_synthetic when --synthetic)")
     args = ap.parse_args()
 
     if args.synthetic:
@@ -439,10 +442,13 @@ def main() -> int:
            "> 这条结论比「筛选带来 X% 增益」弱，但它是**真的**。"
            "任何只在一个验证集上比较 A/B 的报告都会得到相反结论之一。", ""]
 
-    (RESULTS / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))
-    (RESULTS / "report.md").write_text("\n".join(md))
+    # Synthetic runs must never overwrite the real report: a forgotten rerun would
+    # publish fabricated numbers as measurements.
+    stem = args.out or ("report_synthetic" if args.synthetic else "report")
+    (RESULTS / f"{stem}.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))
+    (RESULTS / f"{stem}.md").write_text("\n".join(md))
     print("\n".join(md))
-    print(f"\nwrote {RESULTS/'report.md'} and {RESULTS/'report.json'}")
+    print(f"\nwrote {RESULTS/stem}.md and {RESULTS/stem}.json")
     return 0
 
 

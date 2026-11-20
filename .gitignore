@@ -32,3 +32,5 @@ results/overlap.json
 .ipynb_checkpoints/
 results/report.md
 results/report.json
+results/report_synthetic.md
+results/report_synthetic.json
