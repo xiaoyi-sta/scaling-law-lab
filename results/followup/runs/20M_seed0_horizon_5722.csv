@@ -1,0 +1,3 @@
+run_id,model_size,seed,tokens_seen,step,val_set,val_loss,val_loss_se_doc,n_doc,wall_time,lr
+20M_seed0_horizon_5722,20M,0,374996992,2861,A,3.211127,0.003731,8882,1339.9,1.057e-03
+20M_seed0_horizon_5722,20M,0,749993984,5722,A,3.065834,0.003806,8882,2674.5,5.000e-05

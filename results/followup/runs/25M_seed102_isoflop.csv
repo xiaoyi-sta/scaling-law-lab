@@ -1,0 +1,3 @@
+run_id,model_size,seed,tokens_seen,step,val_set,val_loss,val_loss_se_doc,n_doc,wall_time,lr
+25M_seed102_isoflop,25M,102,310378496,2368,A,3.230833,0.003751,8882,1225.4,1.057e-03
+25M_seed102_isoflop,25M,102,620756992,4736,A,3.067405,0.003805,8882,2455.5,5.000e-05

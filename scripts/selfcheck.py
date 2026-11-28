@@ -8,7 +8,6 @@ tests an algebraic identity that must hold exactly.  Run before publishing numbe
 from __future__ import annotations
 
 import csv
-import glob
 import json
 import math
 import pathlib
@@ -22,6 +21,7 @@ from scaling.config import PRESETS                                          # no
 from scaling.fit import (ablation_gain, aic_bic, cluster_bootstrap, f_test,  # noqa: E402
                          fit_m2, fit_m3, optimal_allocation, predict,
                          predict_interval, sigma_run_from_replicates, wnls)
+from scripts.fit_report import log_paths  # noqa: E402
 
 OK = []
 BAD = []
@@ -36,9 +36,7 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 def check_logs():
     print("\n1. 训练日志完整性")
     rows = []
-    for f in sorted(glob.glob("logs/*.csv")):
-        if "synthetic" in f:
-            continue
+    for f in log_paths():
         with open(f) as fh:
             rows += list(csv.DictReader(fh))
     if not rows:
@@ -232,7 +230,7 @@ def check_report(rows):
         check("val A 上 Delta_L 为正",
               all(x > 0 for x in deltas_val_a), f"{len(deltas_val_a)} 个断点")
         spread = max(deltas_val_a) - min(deltas_val_a)
-        check("Delta_L 与 D 无关（加性偏移，变异 <10%）",
+        check("原始验证集上的 Delta_L 极差小于其均值的 10%",
               spread / abs(np.mean(deltas_val_a)) < 0.10,
               f"极差 {spread:.4f} / 均值 {np.mean(deltas_val_a):.4f}")
 

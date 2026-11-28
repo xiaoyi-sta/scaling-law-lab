@@ -2,7 +2,7 @@
 
 Run this BEFORE renting a GPU.  It checks, in order:
   1. exact non-embedding parameter counts against 12d^2L + d(2L+1)
-  2. head_dim == 64 for all three sizes (the 同构 claim)
+  2. head_dim == 64 for every preset
   3. no bias parameters anywhere
   4. tied embedding really is one tensor, not two
   5. forward/backward runs, loss at init ~= ln(vocab), gradients finite
@@ -27,7 +27,7 @@ from scaling.config import PRESETS, TrainConfig  # noqa: E402
 from scaling.model import build_model  # noqa: E402
 
 # spec §3 table, exact values, for regression checking
-SPEC_N = {"8M": 7_869_696, "20M": 19_473_024, "50M": 50_348_544}
+SPEC_N = {"8M": 7_869_696, "20M": 19_473_024, "25M": 24_783_744, "50M": 50_348_544}
 
 
 def pick_device() -> str:
@@ -102,8 +102,7 @@ def main() -> int:
         m.zero_grad(set_to_none=True)
 
         tps = (B * T) / dt
-        print(f"         {'':>5}  {tps/1e3:.1f}k tokens/s on {device} (fp32 micro-batch; "
-              f"NOT a projection -- real throughput comes from the 3090)")
+        print(f"         {'':>5}  {tps/1e3:.1f}k tokens/s on {device} (fp32 smoke test)")
 
     # ---- label-shift guard ------------------------------------------------
     # The single most expensive silent bug available in this project: if the

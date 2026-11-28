@@ -63,16 +63,18 @@ class ModelConfig:
         return d
 
 
-# The three sizes.  head_dim == 64 for all three (n_head = d_model / 64), which
-# is what makes the "同构模型族" claim literal rather than approximate.
+# All sizes use 64-dimensional attention heads.
 PRESETS: dict[str, ModelConfig] = {
     "8M": ModelConfig(name="8M", d_model=256, n_layer=10, n_head=4),
     "20M": ModelConfig(name="20M", d_model=384, n_layer=11, n_head=6),
+    "25M": ModelConfig(name="25M", d_model=384, n_layer=14, n_head=6),
     "50M": ModelConfig(name="50M", d_model=512, n_layer=16, n_head=8),
 }
 
 # Total tokens each size is trained for (drives the LR schedule horizon).
-TOKEN_BUDGET = {"8M": 500_000_000, "20M": 1_000_000_000, "50M": 1_000_000_000}
+TOKEN_BUDGET = {
+    "8M": 500_000_000, "20M": 1_000_000_000, "25M": 620_756_992, "50M": 1_000_000_000,
+}
 
 
 @dataclass

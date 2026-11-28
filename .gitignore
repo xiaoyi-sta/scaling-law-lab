@@ -21,6 +21,8 @@ logs/*.csv
 !logs/*.out
 results/*.png
 results/overlap.json
+results/autodl_download_*/
+results/replays/
 
 # Transport bundles (tar of data/proc)
 *.tar

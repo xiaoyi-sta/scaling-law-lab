@@ -20,7 +20,6 @@ from __future__ import annotations
 import argparse
 import collections
 import csv
-import glob
 import json
 import pathlib
 import sys
@@ -37,17 +36,28 @@ from scaling.fit import (aic_bic, ablation_gain, cluster_bootstrap,   # noqa: E4
                          sigma_run_from_replicates, winkler_score, wnls)
 
 RESULTS = pathlib.Path("results")
+BASELINE_RUNS = RESULTS / "baseline" / "runs"
 NAMES = ["A", "B", "alpha", "beta", "E"]
 
 
 # ------------------------------------------------------------------ loading
-def load_logs(include_synthetic: bool = False) -> dict[str, list[dict]]:
-    """Read logs/*.csv.  Synthetic fixtures are excluded unless explicitly asked for,
-    otherwise a leftover test file silently contaminates the real fit."""
+def log_paths(synthetic: bool = False, log_dir: pathlib.Path | None = None) -> list[pathlib.Path]:
+    """Find one set of CSVs, using the archived baseline in a fresh checkout."""
+    if log_dir is None:
+        log_dir = pathlib.Path("logs")
+        if not synthetic and not any(
+            arm_of(path.stem) != "?" and not path.stem.startswith("synthetic_")
+            for path in log_dir.glob("*.csv")
+        ):
+            log_dir = BASELINE_RUNS
+
+    return sorted(path for path in log_dir.glob("*.csv")
+                  if path.stem.startswith("synthetic_") == synthetic)
+
+
+def load_logs(synthetic: bool = False, log_dir: pathlib.Path | None = None) -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = collections.defaultdict(list)
-    for f in sorted(glob.glob("logs/*.csv")):
-        if "synthetic" in f and not include_synthetic:
-            continue
+    for f in log_paths(synthetic, log_dir):
         with open(f) as fh:
             for r in csv.DictReader(fh):
                 vs = (r.get("val_set") or "A").strip()
@@ -152,17 +162,20 @@ def main() -> int:
     ap.add_argument("--synthetic", action="store_true")
     ap.add_argument("--bootstrap", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--log-dir", type=pathlib.Path, help="directory containing baseline CSV logs")
     ap.add_argument("--out", default=None,
                     help="output basename under results/ (default: report, "
                          "or report_synthetic when --synthetic)")
     args = ap.parse_args()
 
     if args.synthetic:
+        if args.log_dir is not None:
+            ap.error("--log-dir applies to real runs")
         write_synthetic_logs(sigma_run=0.012, gain=1.28)
 
-    logs = load_logs(include_synthetic=args.synthetic)
+    logs = load_logs(synthetic=args.synthetic, log_dir=args.log_dir)
     if not logs:
-        print("no logs/*.csv found -- run training first, or use --synthetic")
+        print("No matching CSV logs found. Check --log-dir or use --synthetic.")
         return 1
 
     RESULTS.mkdir(exist_ok=True)
@@ -198,15 +211,14 @@ def main() -> int:
                     per_size[mname] = r["sigma_run"]
         md += ["## 1. σ_run（run 级可复现性）",
                f"- 合并估计 σ_run = **{sr['sigma_run']:.4f}** nats"
-               f"（95% χ² 区间 [{sr['ci_lo']:.4f}, {sr['ci_hi']:.4f}]，df={sr['df']}，"
-               f"{sr['n_cells']} 个重复格子）"]
+               f"（按重复格点独立计算的 χ² 参考区间 [{sr['ci_lo']:.4f}, {sr['ci_hi']:.4f}]，"
+               f"df={sr['df']}，{sr['n_cells']} 个重复格点）。同一 run 的检查点相关。"]
         if per_size:
             md.append("- 分尺寸：" + "，".join(f"{k} = {v:.4f}" for k, v in per_size.items()))
             if len(per_size) > 1:
                 lo_, hi_ = min(per_size.values()), max(per_size.values())
-                md.append(f"- **同方差假设不成立**：最大/最小 = {hi_/lo_:.1f}x。"
-                          f"权重与预测区间用的是 pooled 值，对最精确的那一档偏保守；"
-                          f"若 sigma_run 随尺寸下降，50M 的预测区间是**过宽**而非过窄。")
+                md.append(f"- 尺寸内的描述性标准差相差 {hi_/lo_:.1f} 倍。"
+                          "重复种子有限，拟合和预测区间沿用合并估计。")
                 report["sigma_run_per_size"] = per_size
         md.append("")
 
@@ -288,15 +300,17 @@ def main() -> int:
             covered = (pi["lo"] <= y) & (y <= pi["hi"])
             ws = winkler_score(pi["lo"], pi["hi"], y)
             mape = float(np.mean(np.abs(pi["pred"] - y) / y) * 100)
-            md += ["## 4. 外推验证", "",
-                   f"用 {int(mask_fit.sum())} 个观测拟合，外推 {int(mask_tst.sum())} 个点", "",
+            md += ["## 4. 原训练协议下的留出检查", "",
+                   f"用 {int(mask_fit.sum())} 个观测拟合，留出 {int(mask_tst.sum())} 个点。"
+                   "同一 run 的留出点相关，合并噪声估计沿用全样本。"
+                   "拟合只用了两个尺寸，尺寸项的幅度、指数和截距难以分别确定。", "",
                    "| N | D | 实测 | 预测 | 95% 预测区间 | 是否覆盖 |", "|---|---|---|---|---|---|"]
             # pi is indexed by position within the test subset, not by the global row
             test_idx = np.where(mask_tst)[0]
             for k, j in enumerate(test_idx):
                 md.append(f"| {Na[j]:,.0f} | {Da[j]:,.0f} | {La[j]:.4f} | {pi['pred'][k]:.4f} | "
                           f"[{pi['lo'][k]:.4f}, {pi['hi'][k]:.4f}] | {'是' if covered[k] else '否'} |")
-            md += ["", f"- 覆盖率：{int(covered.sum())}/{int(covered.size)}",
+            md += ["", f"- 落在预测区间内的点数为 {int(covered.sum())}/{int(covered.size)}",
                    f"- 平均 Winkler 分数：{float(ws.mean()):.4f}"
                    f"（越低越好，它同时惩罚区间过宽与未覆盖，而不只是数覆盖个数）",
                    f"- MAPE：{mape:.2f}%"
@@ -367,9 +381,7 @@ def main() -> int:
               if b]
     if blocks:
         md += ["## 5. 数据消融", "",
-               "ΔL 在两套验证集上分别评估。单用原始网页验证集会系统性偏向 A 组：",
-               "该验证集与 A 组同分布，与 B 组的 unigram JSD 是 A 组的 4 倍（0.133 vs 0.033）。",
-               "两套并用才能夹逼出真实效应。", ""]
+               "分别在原始网页和教育网页验证集上比较训练语料。", ""]
         for b in blocks:
             md += [f"### {b['arm_hi']} 组 vs {b['arm_lo']} 组（评估于验证集 {b['val_set']}）", "",
                    f"| D | {b['arm_lo']} 组 | {b['arm_hi']} 组 | ΔL |",
@@ -378,26 +390,18 @@ def main() -> int:
                 md.append(f"| {d:,.0f} | {la:.4f} | {lh:.4f} | {lh - la:+.4f} |")
             md += ["", f"- 联合模型：B_A = {b['B_A']:.1f}，B_B = {b['B_B']:.1f}，"
                        f"β = {b['beta']:.4f}",
-                   f"- {b['arm_hi']} 组的 token 等效增益 = **{b['gain']:.3f}x** "
-                   f"（95% 区间 [{b['gain_ci'][0]:.3f}, {b['gain_ci'][1]:.3f}]，"
-                   f"{b['n_boot']} 次 bootstrap 重采样）", ""]
+                   f"- 这个联合模型给出的探索性 token 比为 {b['gain']:.3f}，"
+                   f"筛选后保留 {b['n_boot']} 次重采样估计。", ""]
         report["ablation"] = blocks
 
         gains_a = next((b for b in blocks if b["val_set"] == "A" and b["arm_hi"] == "B"), None)
         gains_b = next((b for b in blocks if b["val_set"] == "B" and b["arm_hi"] == "B"), None)
         if gains_a and gains_b:
-            md += ["### 怎么读这对结果", "",
-                   f"- 在 raw 验证集上，edu 组 {gains_a['gain']:.2f}x（<1 = 需要更多 token）",
-                   f"- 在 edu 验证集上，edu 组 {gains_b['gain']:.2f}x",
-                   "- 两个口径符号相反 → 该差异主要由**验证集分布**决定，不能归因于数据质量；",
-                   "- 正确表述：两套语料在各自分布的验证集上互有胜负，"
-                   "ΔL 的量级与方向都随评估分布翻转。", "",
-                   "### 为什么不能报「等效算力增益」的比值", "",
-                   "上面每张表里 ΔL 在所有 D 上几乎恒定（变异系数 <2%）。恒定偏移说明差别是",
-                   "加性的（相当于两条曲线整体平移），而联合模型只能通过 B_g/D^b 表达它，",
-                   "于是 b 塌向 0、B 反向膨胀，`(B_A/B_B)^(1/b)` 变得不可识别——表现就是极宽的",
-                   "bootstrap CI。此时正确的汇总量是 **Delta_L 本身**，不是增益比。",
-                   "这也解释了为什么 A2/B2 的 CI 反而更窄：那两组只有 2 个 D 点，b 被钉住。", ""]
+            md += ["### 解读", "",
+                   "验证集改变了两组语料的排序。要估计筛选本身的因果效应，"
+                   "还需要控制文档来源和其他语料差异。",
+                   "联合模型的 token 换算依赖 β，且没有单独的组别损失偏移项。"
+                   "这里优先报告各验证集上的实测 ΔL。", ""]
             report["ablation_bracket"] = {"valA_gain": gains_a["gain"],
                                           "valB_gain": gains_b["gain"]}
 
@@ -419,28 +423,20 @@ def main() -> int:
     for a in alloc:
         md.append(f"| {a['budget']} | {a['C']:.3e} | {a['N']:,.0f} | {a['D']:,.0f} | "
                   f"{a['D_over_N']:.1f} | [{a['D_over_N_ci'][0]:.1f}, {a['D_over_N_ci'][1]:.1f}] |")
-    md += ["", "区间才是结论：D/N 的点估计落在 80-90，但 95% bootstrap 区间横跨一个数量级，",
-           "**与 Chinchilla 的 ~20 并不矛盾也不一致**——在这个 N 跨度（6.4 倍）下无从分辨。",
-           "README 必须这样写，否则等于宣称一个无法支撑的结论。", ""]
+    md += ["", "表里的配比由拟合曲面推算，一部分落在训练 token 范围之外。"
+           "区间反映本数据和拟合方法下的不确定性。", ""]
     report["allocation"] = alloc
 
-    md += ["## 7. 结论（可直接用于 README）", "",
-           f"1. **缩放律拟合**：L(N,D) = A/N^α + B/D^β + E，α = {fit.theta[2]:.3f}、"
+    md += ["## 7. 本次拟合摘要", "",
+           f"1. 缩放律 L(N,D) = A/N^α + B/D^β + E 给出 α = {fit.theta[2]:.3f}、"
            f"β = {fit.theta[3]:.3f}、E = {fit.theta[4]:.2f}"
-           f"（{fit.n} 观测 / {jk['n_runs']} run；α 的两级 bootstrap 区间见 §2）。",
-           f"2. **模型选择**：M1 的 AIC 与 BIC 均优于 M2（E=0）与 M3（对数线性），"
-           f"嵌套 F 检验 p = {p:.4g}。",
-           f"3. **外推**：仅用 8M + 20M 前三个断点拟合，预测 20M@1B 与 50M 全部，"
-           f"覆盖率见 §4，MAPE {report.get('extrapolation', {}).get('mape_pct', float('nan')):.2f}%。",
-           f"4. **数据消融**：ΔL 的符号随验证分布翻转——raw 验证集上 edu 组差约 0.16 nats，",
-           "   edu 验证集上 edu 组好约 0.13 nats，且两者都不随 D 变化。",
-           "   **结论是「每套语料在匹配其自身分布的验证集上占优」，"
-           "不是「筛选提升质量」。**",
-           "5. **批次受控对照**：把两组限制在同一批 CC dump 上重做，依然出现同样的镜像，",
-           "   说明该效应不来自 crawl 批次差异。",
-           "",
-           "> 这条结论比「筛选带来 X% 增益」弱，但它是**真的**。"
-           "任何只在一个验证集上比较 A/B 的报告都会得到相反结论之一。", ""]
+           f"（{fit.n} 个观测，来自 {jk['n_runs']} 次训练）。",
+           "2. 模型比较沿用逐检查点的 AIC、BIC 和 F 统计量。"
+           "检查点之间的相关性限制了这些量的推断含义。",
+           f"3. 旧训练协议下的留出检查 MAPE 为 "
+           f"{report.get('extrapolation', {}).get('mape_pct', float('nan')):.2f}%，"
+           "各留出点和区间见 §4。",
+           "4. 每个验证集上的语料差值和联合拟合记录见 §5。", ""]
 
     # Synthetic runs must never overwrite the real report: a forgotten rerun would
     # publish fabricated numbers as measurements.

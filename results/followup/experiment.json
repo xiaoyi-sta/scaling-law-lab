@@ -1,0 +1,102 @@
+{
+  "date": "2026-11-27",
+  "validation_set": "A",
+  "validation_documents": 8882,
+  "tokens_per_step": 131072,
+  "near_optimal_tolerance_nats": 0.01,
+  "environment": {
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "torch": "2.8.0+cu128",
+    "cuda": "12.8",
+    "input_sha256": {
+      "trainA.bin": "1130114a63f5582d830d32b8ce7520aeeb090a62fa8cad32829ac16eec6ae85c",
+      "trainA_doc_lens.npy": "defecea00e943a32702fb37ce95d61e9c806580436c22cac29f9aee2b643279b",
+      "val.bin": "ba261d266fe6eea8614d989329b0856f0a5d5ef2db6fe93acaaba0fb531978d1",
+      "val_doc_lens.npy": "6b5dcda010fd1a82b3f3ac7453c115a91a28d5265d80864a96b25e57ec2ce566"
+    },
+    "code_sha256": {
+      "train.py": "2113629284cbb0f86d96189ce05cc7932e51a4ab0bf3b8249a52ac18f03d8c23",
+      "scaling/config.py": "90bfa47abb5f6b861829f4bb111cdeca02cdc881badbdb708c8eb12ba10a7d4a",
+      "scaling/data.py": "b97ea03cbbdd9d1ae2b3448c2fb2457c76ee650b6a6509a3e0f3469e90d66ffb",
+      "scaling/eval.py": "a083f2e28ad661886d77d7cbf725af7e3899cab8415b0b31875bffddcc527569",
+      "scaling/model.py": "251b49b7c88f396613f16892c3a4f77f12482ae3f274292f9834e138d988be6a"
+    }
+  },
+  "frozen_surface": {
+    "method": "nonlinear GLS with compound-symmetric run covariance (CPU pilot, 2026-11-22)",
+    "runs": 6,
+    "observations": 24,
+    "parameter_order": [
+      "E",
+      "a",
+      "b",
+      "alpha",
+      "beta"
+    ],
+    "scaling_units": {
+      "N0": 20000000.0,
+      "D0": 500000000.0
+    },
+    "theta_scaled": [
+      2.2878960778653794,
+      0.33120074938232247,
+      0.507581753614052,
+      0.39513236788328865,
+      0.43549216705271104
+    ]
+  },
+  "runs": [
+    {
+      "id": "50M_seed0_horizon_1907",
+      "model": "50M",
+      "seed": 0,
+      "steps": 1907,
+      "minutes": 25.5,
+      "reference": "50M_seed0_A"
+    },
+    {
+      "id": "20M_seed0_horizon_5722",
+      "model": "20M",
+      "seed": 0,
+      "steps": 5722,
+      "minutes": 44.7,
+      "reference": "20M_seed0_A"
+    },
+    {
+      "id": "20M_seed1_horizon_5722",
+      "model": "20M",
+      "seed": 1,
+      "steps": 5722,
+      "minutes": 46.0,
+      "reference": "20M_seed1_A"
+    },
+    {
+      "id": "20M_seed101_isoflop",
+      "model": "20M",
+      "seed": 101,
+      "steps": 5877,
+      "minutes": 45.5
+    },
+    {
+      "id": "25M_seed101_isoflop",
+      "model": "25M",
+      "seed": 101,
+      "steps": 4736,
+      "minutes": 41.1
+    },
+    {
+      "id": "20M_seed102_isoflop",
+      "model": "20M",
+      "seed": 102,
+      "steps": 5877,
+      "minutes": 46.2
+    },
+    {
+      "id": "25M_seed102_isoflop",
+      "model": "25M",
+      "seed": 102,
+      "steps": 4736,
+      "minutes": 41.1
+    }
+  ]
+}
